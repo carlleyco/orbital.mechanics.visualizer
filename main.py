@@ -37,10 +37,10 @@ def start(vmultiplier, steps=10000, dt=10.0):
             ylist.append(y)
             break
 
-        ax = -G * M * x / r**3
+        ax_val = -G * M * x / r**3
         ay = -G * M * y / r**3
 
-        vx += ax * dt
+        vx += ax_val * dt
         vy += ay * dt
 
         x += vx * dt
@@ -68,9 +68,9 @@ def updatelimits(xarray,yarray):
 xarray,yarray, crashed = start(1.0)
 updatelimits(xarray,yarray)
 
-orbit, = ax.plot([], [], color='orange', lw=0.8, alpha=0.5)
+orbit, = ax.plot([], [], color='tomato', lw=0.8, alpha=0.6)
 satellite, = ax.plot([], [], 'yo', markersize=9, label='Satellite')
-trail, = ax.plot([], [], color='orange', lw=2)
+trail, = ax.plot([], [], color='tomato', lw=2)
 
 crashmarker, = ax.plot([], [], 'rx', markersize = 12, markeredgewidth=2, label='Crash Point')
 
@@ -112,12 +112,14 @@ framecounter = {'value': 0}
 currentcrashed = {'value': False}
 
 def animate(i):
+    global xarray, yarray
+
     if len(xarray) == 0:
-        return trail, satellite, crashmarker
-    
+        return orbit, trail, satellite, crashmarker
+
     if framecounter['value'] >= len(xarray):
         framecounter['value'] = 0
-    
+
     idx = framecounter['value']
     startidx = max(0, idx - 120)
 
@@ -125,18 +127,21 @@ def animate(i):
         trail.set_data(xarray[startidx:idx], yarray[startidx:idx])
     else:
         trail.set_data([], [])
-    
-    if idx < len(xarray) - 1 or not currentcrashed['value']:
-        satellite.set_data([xarray[idx]], [yarray[idx]])
-    else:
-        satellite.set_data([], [])
 
-    framecounter['value'] += 2
+    if currentcrashed['value'] and idx >= len(xarray) - 1:
+        satellite.set_data([], [])
+    else:
+        satellite.set_data([xarray[idx]], [yarray[idx]])
+
+    if len(xarray) < 200:
+        framecounter['value'] += 1
+    else:
+        framecounter['value'] += 2
 
     if framecounter['value'] >= len(xarray):
         framecounter['value'] = 0
 
-    return trail, satellite, crashmarker
+    return orbit, trail, satellite, crashmarker
 
 ani = animation.FuncAnimation(fig, animate, interval=20, blit=True, save_count=1000, cache_frame_data=False)
 
@@ -150,24 +155,28 @@ def on_slider(val):
     global xarray, yarray, currentcrashed
 
     xarray, yarray, crashed = start(val)
+
     currentcrashed['value'] = crashed
 
     if len(xarray) > 0:
         updatelimits(xarray,yarray)
-    
+
+        orbit.set_data([], [])
         orbit.set_data(xarray,yarray)
+
+        trail.set_data([], [])
+        satellite.set_data([], [])
 
         if crashed and len(xarray) > 0:
             crashmarker.set_data([xarray[-1]], [yarray[-1]])
             crashmarker.set_visible(True)
         else:
+            crashmarker.set_data([], [])
             crashmarker.set_visible(False)
 
-        trail.set_data([], [])
-        satellite.set_data([], [])
-        
         framecounter['value'] = 0
         update_text(val, crashed)
+
         fig.canvas.draw_idle()
 
 vmultiplierslider.on_changed(on_slider)

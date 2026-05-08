@@ -116,4 +116,4 @@ Future improvements will be added listed above if there are any.
 
 ## 🎬 Demo
 
-Video will be added here shortly.
+https://github.com/user-attachments/assets/565babac-c68e-41d1-96dd-bffad4a2aa40

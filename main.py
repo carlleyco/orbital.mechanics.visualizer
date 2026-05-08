@@ -17,7 +17,14 @@ def start(vmultiplier, steps=10000, dt=10.0):
 
     xlist,ylist = [x], [y]
 
-    maxdistance = 20 * R if vmultiplier >= np.sqrt(2) else 10 * R
+    if vmultiplier >= np.sqrt(2):
+        maxdistance = 20 * R # Escape
+    elif vmultiplier >= 0.99:
+        maxdistance = 10 * R # Orbital
+    else:
+        maxdistance = 5 * R # Sub Orbital
+
+    crashed = False
 
     for _ in range(steps):
         r = np.sqrt(x**2 + y**2)
@@ -25,6 +32,9 @@ def start(vmultiplier, steps=10000, dt=10.0):
         if r > maxdistance:
             break
         if r < R:
+            crashed = True
+            xlist.append(x)
+            ylist.append(y)
             break
 
         ax = -G * M * x / r**3
@@ -39,7 +49,7 @@ def start(vmultiplier, steps=10000, dt=10.0):
         xlist.append(x)
         ylist.append(y)
 
-    return np.array(xlist), np.array(ylist)
+    return np.array(xlist), np.array(ylist), crashed
 
 fig,ax=plt.subplots(figsize=(8,8))
 plt.subplots_adjust(bottom=0.18, top=0.95)
@@ -50,16 +60,19 @@ ax.add_patch(earth)
 def updatelimits(xarray,yarray):
     if len(xarray) > 0:
         maxdist = max(np.max(np.abs(xarray)), np.max(np.abs(yarray)))
-        limit = max(2.5 * R, min(maxdist * 1.2, 20 * R))
-        ax.set_xlim(-limit, limit)
-        ax.set_ylim(-limit, limit)
+        if np.isfinite(maxdist):
+            limit = max(2.5 * R, min(maxdist * 1.2, 20 * R))
+            ax.set_xlim(-limit, limit)
+            ax.set_ylim(-limit, limit)
 
-xarray,yarray = start(1.0)
+xarray,yarray, crashed = start(1.0)
 updatelimits(xarray,yarray)
 
 orbit, = ax.plot([], [], color='orange', lw=0.8, alpha=0.5)
 satellite, = ax.plot([], [], 'yo', markersize=9, label='Satellite')
 trail, = ax.plot([], [], color='orange', lw=2)
+
+crashmarker, = ax.plot([], [], 'rx', markersize = 12, markeredgewidth=2, label='Crash Point')
 
 orbit.set_data(xarray, yarray)
 
@@ -70,12 +83,15 @@ text = ax.text(
     bbox=dict(boxstyle='round,pad=0.4', facecolor='lightyellow', alpha=0.8)
 )
 
-def update_text(vmultiplier):
+def update_text(vmultiplier, crashed=False):
     vescape = np.sqrt(2) * vcircularvalue
     vcurrent = vmultiplier * vcircularvalue
 
     if vmultiplier < 0.99:
-        orbit_type = 'Sub-Orbital / Crash'
+        if crashed:
+            orbit_type = 'Sub-Orbital (Crashed)'
+        else:
+            orbit_type = 'Sub-Orbital'
     elif vmultiplier < 1.01:
         orbit_type = 'Circular'
     elif vmultiplier < np.sqrt(2) - 0.01:
@@ -89,29 +105,40 @@ def update_text(vmultiplier):
         f'Escape Speed : {vescape/1000:.2f} km/s'
     )
 
-update_text(1.0)
+update_text(1.0, False)
 ax.legend(loc='upper right')
 
-frame_idx = [0]
+framecounter = {'value': 0}
+currentcrashed = {'value': False}
 
 def animate(i):
     if len(xarray) == 0:
-        return trail, satellite
+        return trail, satellite, crashmarker
     
-    idx = frame_idx[0] % len(xarray)
-    startidx = max(0, idx-120)
+    if framecounter['value'] >= len(xarray):
+        framecounter['value'] = 0
+    
+    idx = framecounter['value']
+    startidx = max(0, idx - 120)
 
     if idx > 0:
         trail.set_data(xarray[startidx:idx], yarray[startidx:idx])
     else:
         trail.set_data([], [])
     
-    satellite.set_data([xarray[idx]], [yarray[idx]])
-    frame_idx[0] += 2
+    if idx < len(xarray) - 1 or not currentcrashed['value']:
+        satellite.set_data([xarray[idx]], [yarray[idx]])
+    else:
+        satellite.set_data([], [])
 
-    return trail, satellite
+    framecounter['value'] += 2
 
-ani = animation.FuncAnimation(fig, animate, interval=20, blit=True)
+    if framecounter['value'] >= len(xarray):
+        framecounter['value'] = 0
+
+    return trail, satellite, crashmarker
+
+ani = animation.FuncAnimation(fig, animate, interval=20, blit=True, save_count=1000, cache_frame_data=False)
 
 axslider = fig.add_axes([0.18, 0.06, 0.65, 0.03])
 
@@ -120,18 +147,28 @@ axslider.axvline(1.0, color='tomato', lw=1.0, linestyle=':', alpha=0.5, label='C
 axslider.axvline(np.sqrt(2), color='tomato', lw=1.5, linestyle='--', label='Escape')
 
 def on_slider(val):
-    global xarray, yarray
-    xarray, yarray = start(val)
+    global xarray, yarray, currentcrashed
 
-    updatelimits(xarray,yarray)
+    xarray, yarray, crashed = start(val)
+    currentcrashed['value'] = crashed
+
+    if len(xarray) > 0:
+        updatelimits(xarray,yarray)
     
-    orbit.set_data(xarray,yarray)
-    trail.set_data([], [])
-    satellite.set_data([], [])
-    
-    frame_idx[0] = 0
-    update_text(vmultiplierslider.val)
-    fig.canvas.draw_idle()
+        orbit.set_data(xarray,yarray)
+
+        if crashed and len(xarray) > 0:
+            crashmarker.set_data([xarray[-1]], [yarray[-1]])
+            crashmarker.set_visible(True)
+        else:
+            crashmarker.set_visible(False)
+
+        trail.set_data([], [])
+        satellite.set_data([], [])
+        
+        framecounter['value'] = 0
+        update_text(val, crashed)
+        fig.canvas.draw_idle()
 
 vmultiplierslider.on_changed(on_slider)
 

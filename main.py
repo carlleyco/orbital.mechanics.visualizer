@@ -4,53 +4,48 @@ import matplotlib.animation as animation
 from matplotlib.widgets import Slider
 
 # Constants
-G = 6.674e-11   # Gravitational Constant
-M = 5.972e24    # Earth Mass
-R = 6.371e6     # Earth Radius
+G = 6.674e-11
+M = 5.972e24
+R = 6.371e6
 MU = G * M
+alt = 400e3
+r0 = R + alt
+vcircular = np.sqrt(MU / r0)
+vescape = np.sqrt(2) * vcircular
+
+xarray, yarray, vxarray, vyarray = None, None, None, None
 
 def start(vmultiplier, steps=10000, dt=10.0):
-    r0 = R + 400e3
-    vcircular = np.sqrt(MU / r0) # circular velocity
-
-    x,y = r0, 0.0
+    x, y = r0, 0.0
     vx, vy = 0.0, vcircular * vmultiplier
-
-    xlist,ylist = [x], [y]
-
-    if vmultiplier >= np.sqrt(2):
-        maxdistance = 20 * R # Escape
-    elif vmultiplier >= 0.99:
-        maxdistance = 10 * R # Orbital
-    else:
-        maxdistance = 5 * R # Sub Orbital
-
+    
+    xlist, ylist = [x], [y]
+    vxlist, vylist = [vx], [vy]
+    
+    maxdistance = 20 * R if vmultiplier >= np.sqrt(2) else (10 * R if vmultiplier >= 0.99 else 5 * R)
     crashed = False
-
+    
     for _ in range(steps):
-        r = np.hypot(x,y)
-
-        if r > maxdistance:
+        r = np.hypot(x, y)
+        if r > maxdistance or r < R:
+            if r < R:
+                crashed = True
+                xlist.append(x)
+                ylist.append(y)
             break
-        if r < R:
-            crashed = True
-            xlist.append(x)
-            ylist.append(y)
-            break
-
-        ax_val = -MU * x / r**3
-        ay = -MU * y / r**3
-
-        vx += ax_val * dt
-        vy += ay * dt
-
+        
+        factor = -MU / r**3
+        vx += factor * x * dt
+        vy += factor * y * dt
         x += vx * dt
-        y += vy *dt
-
+        y += vy * dt
+        
         xlist.append(x)
         ylist.append(y)
-
-    return np.array(xlist), np.array(ylist), crashed
+        vxlist.append(vx)
+        vylist.append(vy)
+    
+    return np.array(xlist), np.array(ylist), np.array(vxlist), np.array(vylist), crashed
 
 fig,ax=plt.subplots(figsize=(8,8))
 plt.subplots_adjust(bottom=0.18, top=0.95)
@@ -75,7 +70,7 @@ def updatelimits(xarray, yarray):
             ax.set_xlim(-limit, limit)
             ax.set_ylim(-limit, limit)
 
-xarray,yarray, crashed = start(1.0)
+xarray, yarray, vxarray, vyarray, crashed = start(1.0)
 updatelimits(xarray,yarray)
 
 orbit, = ax.plot([], [], color='tomato', lw=0.8, alpha=0.6)
@@ -86,44 +81,46 @@ crashmarker, = ax.plot([], [], 'rx', markersize = 12, markeredgewidth=2, label='
 
 orbit.set_data(xarray, yarray)
 
-vcircularvalue = np.sqrt(MU / (R + 400e3))
 text = ax.text(
     0.02, 0.97, '', transform=ax.transAxes,
     verticalalignment='top', fontsize=9,
     bbox=dict(boxstyle='round,pad=0.4', facecolor='lightyellow', alpha=0.8)
 )
 
-def update_text(vmultiplier, crashed=False):
-    vescape = np.sqrt(2) * vcircularvalue
-    vcurrent = vmultiplier * vcircularvalue
+def update_text(vmultiplier, crashed=False, vx_array=None, vy_array=None):
+    vescape = np.sqrt(2) * vcircular
+
+    if vx_array is not None and len(vx_array) > 0:
+        idx = len(vx_array) - 1
+        vcurrent = np.sqrt(vx_array[idx]**2 + vy_array[idx]**2)
+    else:
+        vcurrent = vmultiplier * vcircular
 
     if vmultiplier < 0.99:
-        if crashed:
-            orbit_type = 'Sub-Orbital (Crashed)'
-        else:
-            orbit_type = 'Sub-Orbital'
+        orbit_type = 'Sub-Orbital (Crashed)' if crashed else 'Sub-Orbital'
     elif vmultiplier < 1.01:
         orbit_type = 'Circular'
     elif vmultiplier < np.sqrt(2) - 0.01:
         orbit_type = 'Elliptical'
     else:
         orbit_type = 'Escape Trajectory'
+
     text.set_text(
-        f'Orbit type : {orbit_type}\n'
-        f'Current Speed : {vcurrent/1000:.2f} km/s\n'
-        f'Circular Speed : {vcircularvalue/1000:.2f} km/s\n'
+        f'Orbit type : Circular\n'
+        f'Current Speed : {vcircular/1000:.2f} km/s\n'
+        f'Circular Speed : {vcircular/1000:.2f} km/s\n'
         f'Escape Speed : {vescape/1000:.2f} km/s'
     )
 
-update_text(1.0, False)
 ax.legend(loc='upper right')
 
 framecounter = {'value': 0}
 currentcrashed = {'value': False}
 updating = {'value': False}
+sliderupdating = {'value': False}
 
 def animate(i):
-    global xarray, yarray
+    global xarray, yarray, vxarray, vyarray
 
     if len(xarray) == 0:
         return orbit, trail, satellite, crashmarker
@@ -143,6 +140,28 @@ def animate(i):
         satellite.set_data([], [])
     else:
         satellite.set_data([xarray[idx]], [yarray[idx]])
+        
+        # Update speed display in real-time during animation
+        current_speed = np.sqrt(vxarray[idx]**2 + vyarray[idx]**2)
+        val = vmultiplierslider.val
+        
+        if currentcrashed['value']:
+            orbit_type = 'Sub-Orbital (Crashed)'
+        elif val < 0.99:
+            orbit_type = 'Sub-Orbital'
+        elif val < 1.01:
+            orbit_type = 'Circular'
+        elif val < np.sqrt(2) - 0.01:
+            orbit_type = 'Elliptical'
+        else:
+            orbit_type = 'Escape Trajectory'
+        
+        text.set_text(
+            f'Orbit type : {orbit_type}\n'
+            f'Current Speed : {current_speed/1000:.2f} km/s\n'
+            f'Circular Speed : {vcircular/1000:.2f} km/s\n'
+            f'Escape Speed : {vescape/1000:.2f} km/s'
+        )
 
     step = max(1, len(xarray) // 800)
     framecounter['value'] += step
@@ -152,7 +171,7 @@ def animate(i):
 
     return orbit, trail, satellite, crashmarker
 
-ani = animation.FuncAnimation(fig, animate, interval=20, blit=True, save_count=1000, cache_frame_data=False)
+ani = animation.FuncAnimation(fig, animate, interval=20, blit=False, save_count=1000, cache_frame_data=False)
 
 axslider = fig.add_axes([0.18, 0.06, 0.65, 0.03])
 
@@ -161,11 +180,14 @@ axslider.axvline(1.0, color='tomato', lw=1.0, linestyle=':', alpha=0.5, label='C
 axslider.axvline(np.sqrt(2), color='tomato', lw=1.5, linestyle='--', label='Escape')
 
 def on_slider(val):
-    global xarray, yarray, currentcrashed
+    global xarray, yarray, vxarray, vyarray, currentcrashed
 
-    ani.event_source.stop()
+    if sliderupdating['value']:
+        return
 
-    xarray, yarray, crashed = start(val)
+    sliderupdating['value'] = True
+
+    xarray, yarray, vxarray, vyarray, crashed = start(val)
 
     currentcrashed['value'] = crashed
 
@@ -185,11 +207,31 @@ def on_slider(val):
         crashmarker.set_data([], [])
         crashmarker.set_visible(False)
 
-    update_text(val, crashed)
+    # Update text with final velocity of the new orbit
+    if len(vxarray) > 0:
+        final_speed = np.sqrt(vxarray[-1]**2 + vyarray[-1]**2)
+    else:
+        final_speed = val * vcircular
+    
+    if val < 0.99:
+        orbit_type = 'Sub-Orbital (Crashed)' if crashed else 'Sub-Orbital'
+    elif val < 1.01:
+        orbit_type = 'Circular'
+    elif val < np.sqrt(2) - 0.01:
+        orbit_type = 'Elliptical'
+    else:
+        orbit_type = 'Escape Trajectory'
+    
+    text.set_text(
+        f'Orbit type : {orbit_type}\n'
+        f'Current Speed : {final_speed/1000:.2f} km/s\n'
+        f'Circular Speed : {vcircular/1000:.2f} km/s\n'
+        f'Escape Speed : {vescape/1000:.2f} km/s'
+    )
 
     fig.canvas.draw_idle()
 
-    ani.event_source.start()
+    sliderupdating['value'] = False
 
 vmultiplierslider.on_changed(on_slider)
 

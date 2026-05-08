@@ -7,10 +7,11 @@ from matplotlib.widgets import Slider
 G = 6.674e-11   # Gravitational Constant
 M = 5.972e24    # Earth Mass
 R = 6.371e6     # Earth Radius
+MU = G * M
 
 def start(vmultiplier, steps=10000, dt=10.0):
     r0 = R + 400e3
-    vcircular = np.sqrt(G * M / r0) # circular velocity
+    vcircular = np.sqrt(MU / r0) # circular velocity
 
     x,y = r0, 0.0
     vx, vy = 0.0, vcircular * vmultiplier
@@ -27,7 +28,7 @@ def start(vmultiplier, steps=10000, dt=10.0):
     crashed = False
 
     for _ in range(steps):
-        r = np.sqrt(x**2 + y**2)
+        r = np.hypot(x,y)
 
         if r > maxdistance:
             break
@@ -37,8 +38,8 @@ def start(vmultiplier, steps=10000, dt=10.0):
             ylist.append(y)
             break
 
-        ax_val = -G * M * x / r**3
-        ay = -G * M * y / r**3
+        ax_val = -MU * x / r**3
+        ay = -MU * y / r**3
 
         vx += ax_val * dt
         vy += ay * dt
@@ -76,7 +77,7 @@ crashmarker, = ax.plot([], [], 'rx', markersize = 12, markeredgewidth=2, label='
 
 orbit.set_data(xarray, yarray)
 
-vcircularvalue = np.sqrt(G * M / (R + 400e3))
+vcircularvalue = np.sqrt(MU / (R + 400e3))
 text = ax.text(
     0.02, 0.97, '', transform=ax.transAxes,
     verticalalignment='top', fontsize=9,
@@ -133,10 +134,8 @@ def animate(i):
     else:
         satellite.set_data([xarray[idx]], [yarray[idx]])
 
-    if len(xarray) < 200:
-        framecounter['value'] += 1
-    else:
-        framecounter['value'] += 2
+    step = max(1, len(xarray) // 800)
+    framecounter['value'] += step
 
     if framecounter['value'] >= len(xarray):
         framecounter['value'] = 0
@@ -161,8 +160,7 @@ def on_slider(val):
     if len(xarray) > 0:
         updatelimits(xarray,yarray)
 
-        orbit.set_data([], [])
-        orbit.set_data(xarray,yarray)
+        orbit.set_data(xarray, yarray)
 
         trail.set_data([], [])
         satellite.set_data([], [])

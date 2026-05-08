@@ -58,11 +58,20 @@ plt.subplots_adjust(bottom=0.18, top=0.95)
 earth = plt.Circle((0,0), R, color='royalblue', alpha=0.8)
 ax.add_patch(earth)
 
-def updatelimits(xarray,yarray):
+currentlimit = {'value': 2.5 * R}
+
+def updatelimits(xarray, yarray):
     if len(xarray) > 0:
         maxdist = max(np.max(np.abs(xarray)), np.max(np.abs(yarray)))
+
         if np.isfinite(maxdist):
-            limit = max(2.5 * R, min(maxdist * 1.2, 20 * R))
+            targetlimit = max(2.5 * R, min(maxdist * 1.2, 20 * R))
+
+            # Smooth interpolation
+            currentlimit['value'] += (targetlimit - currentlimit['value']) * 0.15
+
+            limit = currentlimit['value']
+
             ax.set_xlim(-limit, limit)
             ax.set_ylim(-limit, limit)
 
@@ -111,6 +120,7 @@ ax.legend(loc='upper right')
 
 framecounter = {'value': 0}
 currentcrashed = {'value': False}
+updating = {'value': False}
 
 def animate(i):
     global xarray, yarray
@@ -153,29 +163,33 @@ axslider.axvline(np.sqrt(2), color='tomato', lw=1.5, linestyle='--', label='Esca
 def on_slider(val):
     global xarray, yarray, currentcrashed
 
+    ani.event_source.stop()
+
     xarray, yarray, crashed = start(val)
 
     currentcrashed['value'] = crashed
 
-    if len(xarray) > 0:
-        updatelimits(xarray,yarray)
+    framecounter['value'] = 0
 
-        orbit.set_data(xarray, yarray)
+    updatelimits(xarray, yarray)
 
-        trail.set_data([], [])
-        satellite.set_data([], [])
+    orbit.set_data(xarray, yarray)
 
-        if crashed and len(xarray) > 0:
-            crashmarker.set_data([xarray[-1]], [yarray[-1]])
-            crashmarker.set_visible(True)
-        else:
-            crashmarker.set_data([], [])
-            crashmarker.set_visible(False)
+    trail.set_data([], [])
+    satellite.set_data([], [])
 
-        framecounter['value'] = 0
-        update_text(val, crashed)
+    if crashed:
+        crashmarker.set_data([xarray[-1]], [yarray[-1]])
+        crashmarker.set_visible(True)
+    else:
+        crashmarker.set_data([], [])
+        crashmarker.set_visible(False)
 
-        fig.canvas.draw_idle()
+    update_text(val, crashed)
+
+    fig.canvas.draw_idle()
+
+    ani.event_source.start()
 
 vmultiplierslider.on_changed(on_slider)
 

@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.widgets import Slider
 
 # Constants
 G = 6.674e-11   # Gravitational Constant
@@ -36,47 +37,87 @@ def start(vmultiplier, steps=10000, dt=10.0):
 
     return np.array(xlist), np.array(ylist)
 
-xarray, yarray = start(1.0)
-
 fig,ax=plt.subplots(figsize=(8,8))
+plt.subplots_adjust(bottom=0.18, top=0.95)
 
 earth = plt.Circle((0,0), R, color='royalblue', alpha=0.8)
 ax.add_patch(earth)
 
-orbit = ax.plot([], [], color='orange', lw=1.2, alpha=0.5)[0]
-satellite = ax.plot([], [], 'yo', markersize=8, label='Satellite')[0]
-trail = ax.plot([], [], color='orange', lw=1.5)[0]
-
-limit = 1.5 * (R + 400e3)
+limit = 2.5 * R
 ax.set_xlim(-limit, limit)
 ax.set_ylim(-limit, limit)
 ax.set_aspect('equal')
 ax.set_xlabel('x (m)')
 ax.set_ylabel('y (m)')
-ax.set_title('Orbital Mechanics [Satellite]')
-ax.legend()
 ax.grid(True, alpha=0.3)
 
-ax.plot(xarray,yarray, color='orange', lw=0.8, alpha=0.3)
+xarray,yarray = start(1.0)
 
-def init():
-    orbit.set_data([], [])
-    satellite.set_data([], [])
-    return orbit, satellite
+orbit, = ax.plot([], [], color='orange', lw=0.8, alpha=0.5)
+satellite = ax.plot([], [], 'yo', markersize=9, label='Satellite')[0]
+trail = ax.plot([], [], color='orange', lw=2)[0]
 
-def update(frame):
-    start = max(0, frame - 100)
-    trail.set_data(xarray[start:frame], yarray[start:frame])
-    satellite.set_data([xarray[frame]], [yarray[frame]])
-    return trail, satellite
+orbit.set_data(xarray, yarray)
 
-step = 3
-frames = range(0, len(xarray), step)
-
-ani = animation.FuncAnimation(
-    fig,update, frames=frames,
-    init_func=init, interval=20, blit=True
+vcircularvalue = np.sqrt(G * M / (R + 400e3))
+text = ax.text(
+    0.02, 0.97, '', transform=ax.transAxes,
+    verticalalignment='top', fontsize=9,
+    bbox=dict(boxstyle='round,pad=0.4', facecolor='lightyellow', alpha=0.8)
 )
 
-plt.tight_layout()
+def update_text(vmultiplier):
+    vescape = np.sqrt(2) * vcircularvalue
+    vcurrent = vmultiplier * vcircularvalue
+
+    if vmultiplier < 0.99:
+        orbit_type = 'Sub-Orbital / Crash'
+    elif vmultiplier < 1.01:
+        orbit_type = 'Circular'
+    elif vmultiplier < np.sqrt(2) - 0.01:
+        orbit_type = 'Elliptical'
+    else:
+        orbit_type = 'Escape Trajectory'
+    text.set_text(
+        f'Orbit type : {orbit_type}\n'
+        f'Current Speed : {vcurrent/1000:.2f} km/s\n'
+        f'Circular Speed : {vcircularvalue/1000:.2f} km/s\n'
+        f'Escape Speed : {vescape/1000:.2f} km/s'
+    )
+
+update_text(1.0)
+ax.legend(loc='upper right')
+
+frame_idx = [0]
+
+def animate(i):
+    idx = frame_idx[0] % len(xarray)
+    startidx = max(0, idx-120)
+    trail.set_data(xarray[startidx:idx], yarray[startidx:idx])
+    satellite.set_data([xarray[idx]], [yarray[idx]])
+    frame_idx[0] += 3
+    return trail, satellite
+
+ani = animation.FuncAnimation(fig, animate, interval=20, blit=True)
+
+axslider = fig.add_axes([0.18, 0.06, 0.65, 0.03])
+
+vmultiplierslider = Slider(axslider, 'Velocity Multiplier', 0.5, 1.6, valinit=1.0, valfmt='%0.2f')
+vescapelineslider = axslider.axvline(np.sqrt(2), color='tomato', lw=1.5, linestyle='--')
+
+def on_slider(val):
+    global xarray, yarray
+    xarray, yarray = start(vmultiplierslider.val)
+
+    orbit.set_data(xarray,yarray)
+    trail.set_data([], [])
+    satellite.set_data([], [])
+    
+    frame_idx[0] = 0
+    update_text(vmultiplierslider.val)
+    fig.canvas.draw_idle()
+
+vmultiplierslider.on_changed(on_slider)
+
+ax.set_title('Orbital Mechanics Visualizer')
 plt.show()

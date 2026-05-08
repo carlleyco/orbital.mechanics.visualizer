@@ -17,10 +17,14 @@ def start(vmultiplier, steps=10000, dt=10.0):
 
     xlist,ylist = [x], [y]
 
+    maxdistance = 20 * R if vmultiplier >= np.sqrt(2) else 10 * R
+
     for _ in range(steps):
         r = np.sqrt(x**2 + y**2)
 
-        if r > 10 * R or r < R:
+        if r > maxdistance:
+            break
+        if r < R:
             break
 
         ax = -G * M * x / r**3
@@ -43,19 +47,19 @@ plt.subplots_adjust(bottom=0.18, top=0.95)
 earth = plt.Circle((0,0), R, color='royalblue', alpha=0.8)
 ax.add_patch(earth)
 
-limit = 2.5 * R
-ax.set_xlim(-limit, limit)
-ax.set_ylim(-limit, limit)
-ax.set_aspect('equal')
-ax.set_xlabel('x (m)')
-ax.set_ylabel('y (m)')
-ax.grid(True, alpha=0.3)
+def updatelimits(xarray,yarray):
+    if len(xarray) > 0:
+        maxdist = max(np.max(np.abs(xarray)), np.max(np.abs(yarray)))
+        limit = max(2.5 * R, min(maxdist * 1.2, 20 * R))
+        ax.set_xlim(-limit, limit)
+        ax.set_ylim(-limit, limit)
 
 xarray,yarray = start(1.0)
+updatelimits(xarray,yarray)
 
 orbit, = ax.plot([], [], color='orange', lw=0.8, alpha=0.5)
-satellite = ax.plot([], [], 'yo', markersize=9, label='Satellite')[0]
-trail = ax.plot([], [], color='orange', lw=2)[0]
+satellite, = ax.plot([], [], 'yo', markersize=9, label='Satellite')
+trail, = ax.plot([], [], color='orange', lw=2)
 
 orbit.set_data(xarray, yarray)
 
@@ -91,11 +95,20 @@ ax.legend(loc='upper right')
 frame_idx = [0]
 
 def animate(i):
+    if len(xarray) == 0:
+        return trail, satellite
+    
     idx = frame_idx[0] % len(xarray)
     startidx = max(0, idx-120)
-    trail.set_data(xarray[startidx:idx], yarray[startidx:idx])
+
+    if idx > 0:
+        trail.set_data(xarray[startidx:idx], yarray[startidx:idx])
+    else:
+        trail.set_data([], [])
+    
     satellite.set_data([xarray[idx]], [yarray[idx]])
-    frame_idx[0] += 3
+    frame_idx[0] += 2
+
     return trail, satellite
 
 ani = animation.FuncAnimation(fig, animate, interval=20, blit=True)
@@ -103,12 +116,15 @@ ani = animation.FuncAnimation(fig, animate, interval=20, blit=True)
 axslider = fig.add_axes([0.18, 0.06, 0.65, 0.03])
 
 vmultiplierslider = Slider(axslider, 'Velocity Multiplier', 0.5, 1.6, valinit=1.0, valfmt='%0.2f')
-vescapelineslider = axslider.axvline(np.sqrt(2), color='tomato', lw=1.5, linestyle='--')
+axslider.axvline(1.0, color='tomato', lw=1.0, linestyle=':', alpha=0.5, label='Circular')
+axslider.axvline(np.sqrt(2), color='tomato', lw=1.5, linestyle='--', label='Escape')
 
 def on_slider(val):
     global xarray, yarray
-    xarray, yarray = start(vmultiplierslider.val)
+    xarray, yarray = start(val)
 
+    updatelimits(xarray,yarray)
+    
     orbit.set_data(xarray,yarray)
     trail.set_data([], [])
     satellite.set_data([], [])

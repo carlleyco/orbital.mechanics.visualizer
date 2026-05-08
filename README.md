@@ -4,48 +4,48 @@ An orbital simulation built in Python using NumPy and Matplotlib.
 This Project graphs how a satellite behaves in Earth's gravitational field based on different intial velocities.
 
 ## 🚀 Features
-- Real-Time orbital simulation using Newtonian Gravity
-- Interactive Velocity Control using a Slider
-- Automatic Orbit Classification:
+- **Real-Time orbital simulation** using Newtonian Gravity
+- **Interactive Velocity Control** using a Slider
+- Automatic **Orbit Classification**:
   - Sub-Orbital (Crash Trajectory)
   - Circular Orbit
   - Elliptical Orbit
   - Escape Trajectory
-- Live Velocity Tracking of the Satellite
-- Crash Detection with Crash Marker
-- Trail rendering to Visualize Trajectory
+- **Live Velocity Tracking** of the Satellite
+- **Crash Detection** with Crash Marker
+- **Trail rendering** to Visualize Trajectory
 
 ## ⚙️ How it Works
 
 ### 🧠 Gravitational Model
 The Simulation is based on Newton's Law of Gravitation:
-Gravitational Force:
+**Gravitational Force**:
 ```
 F = GMm / r²
 ```
-Acceleration:
+**Acceleration**:
 ```
 a = -GM / r³ * r⃗
 ```
 
 ### 🚀 Orbital Velocity
-Initial Velocity:
+**Initial Velocity**:
 ```
 v = √(GM / r)
 ```
 Velocity Multiplier determines the Orbit Type:
-- v < 1.0 → sub-orbital (crash)
-- v ≈ 1.0 → circular orbit
-- 1.0 < v < √2 → elliptical orbit
-- v ≥ √2 → escape trajectory
+- v < 1.0 → `sub-orbital (crash)`
+- v ≈ 1.0 → `circular orbit`
+- 1.0 < v < √2 → `elliptical orbit`
+- v ≥ √2 → `escape trajectory`
 
-Escape Velocity:
+**Escape Velocity**:
 ```
 v = √(2GM / r)
 ```
 
 ### 🔢 Numerical Method
-The simulation updates motion using Euler's method:
+The simulation updates motion using **Euler's method**:
 ```
 vx += ax * dt
 vy += ay * dt
@@ -79,15 +79,15 @@ y  += vy * dt
 ---
 
 ## 🔧 How It Can Be Improved
-- Runge-Kutta (RK$) instead of Euler Integration for higher accuracy
-- Atmospheric Drag for low Earth Orbit simulations
-- Multi-Body Gravity (n-body simulation) implementation
-- Moon or Satellite Network Systems
-- Compute Orbital Parameters
+- **Runge-Kutta (RK4)** instead of Euler Integration for higher accuracy
+- **Atmospheric Drag** for low Earth Orbit simulations
+- **Multi-Body Gravity** (n-body simulation) implementation
+- **Moon** or **Satellite** Network Systems
+- **Compute Orbital Parameters**
   - eccentricity
   - semi-major axis
   - orbital period
-- Improve UI with labels for apoapsis and periapsis
+- **Improve UI** with labels for apoapsis and periapsis
 
 ---
 
